@@ -1,0 +1,16 @@
+{
+  "name": "hackernews-graphqlserver",
+  "version": "1.0.0",
+  "description": "Converts Hacker News API to GraphQL",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "Frederick Meyer",
+  "license": "MIT",
+  "dependencies": {
+    "graphql-yoga": "^1.16.2",
+    "node-fetch": "^2.2.0"
+  }
+}

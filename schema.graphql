@@ -1,0 +1,37 @@
+type Query {
+  askstories(first: Int, after: ID): [Item!]!
+  beststories(first: Int, after: ID): [Item!]!
+  jobstories(first: Int, after: ID): [Item!]!
+  newstories(first: Int, after: ID): [Item!]!
+  showstories(first: Int, after: ID): [Item!]!
+  topstories(first: Int, after: ID): [Item!]!
+  item(id: ID!): Item
+  user(id: ID!): User
+}
+
+type Item {
+  by: User
+  dead: Boolean
+  deleted: Boolean
+  descendants: Int
+  id: ID
+  kids(first: Int, after: ID): [Item!]
+  parent: Item
+  parts(first: Int, after: ID): [Item!]
+  poll: Item
+  score: Int
+  text: String
+  time: Int
+  title: String
+  type: String
+  url: String
+}
+
+type User {
+  about: String
+  created: Int
+  delay: Int
+  id: ID
+  karma: Int
+  submitted(first: Int, after: ID): [Item!]
+}
