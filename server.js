@@ -3,6 +3,9 @@ const fetch = require('node-fetch')
 
 const baseURL = 'https://hacker-news.firebaseio.com/v0'
 const MAX_FETCH_NUM = 20
+const cacheStories = {}
+const cacheItems = {}
+const cacheUsers = {}
 
 const resolvers = {
   Query: {
@@ -39,19 +42,39 @@ function filterFirstAfter(arr, args) {
 }
 
 function fetchStories(args) {
-  return fetch(`${baseURL}/${args.category}.json`)
-    .then(res => res.json())
-    .then(storiesJson => {
-      return Promise.all(
-        filterFirstAfter(storiesJson, args)
-          .map(itemId => fetchItem(itemId)))
+  const now = Date.now()
+  let storiesPromise;
+  if (cacheStories[args.category] && now - cacheStories[args.category][0] < 60000) {
+    storiesPromise = new Promise(function(resolve, reject){
+      resolve(cacheStories[args.category][1])
     })
+  } else {
+    storiesPromise = fetch(`${baseURL}/${args.category}.json`)
+      .then(res => {
+        cacheStories[args.category] = [now, res.json()]
+        return cacheStories[args.category][1]
+      })
+  }
+  return storiesPromise.then(storiesJson => {
+    return Promise.all(
+      filterFirstAfter(storiesJson, args)
+        .map(itemId => fetchItem(itemId)))
+  })
 }
 
 function fetchItem(itemId) {
   if (itemId) {
+    const now = Date.now()
+    if (cacheItems[itemId] && now - cacheItems[itemId][0] < 60000) {
+      return new Promise(function(resolve, reject){
+        resolve(cacheItems[itemId][1])
+      })
+    }
     return fetch(`${baseURL}/item/${itemId}.json`)
-      .then(res => res.json())
+      .then(res => {
+        cacheItems[itemId] = [now, res.json()]
+        return cacheItems[itemId][1]
+      })
   }
   return null
 }
@@ -67,8 +90,17 @@ function fetchItems(itemIds, args) {
 
 function fetchUser(userId) {
   if (userId) {
+    const now = Date.now()
+    if (cacheUsers[userId] && now - cacheUsers[userId][0] < 60000) {
+      return new Promise(function(resolve, reject){
+        resolve(cacheUsers[userId][1])
+      })
+    }
     return fetch(`${baseURL}/user/${userId}.json`)
-      .then(res => res.json())
+      .then(res => {
+        cacheUsers[userId] = [now, res.json()]
+        return cacheUsers[userId][1]
+      })
   }
   return null
 }
