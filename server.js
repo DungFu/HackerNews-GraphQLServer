@@ -6,12 +6,7 @@ const MAX_FETCH_NUM = 20
 
 const resolvers = {
   Query: {
-    topstories: (parent, args) => fetchStories('topstories', args),
-    newstories: (parent, args) => fetchStories('newstories', args),
-    beststories: (parent, args) => fetchStories('beststories', args),
-    askstories: (parent, args) => fetchStories('askstories', args),
-    showstories: (parent, args) => fetchStories('showstories', args),
-    jobstories: (parent, args) => fetchStories('jobstories', args),
+    stories: (parent, args) => fetchStories(args),
     item: (parent, args) => fetchItem(args.id),
     user: (parent, args) => fetchUser(args.id),
   },
@@ -43,8 +38,8 @@ function filterFirstAfter(arr, args) {
     : arr.slice(startIndex)
 }
 
-function fetchStories(category, args) {
-  return fetch(`${baseURL}/${category}.json`)
+function fetchStories(args) {
+  return fetch(`${baseURL}/${args.category}.json`)
     .then(res => res.json())
     .then(storiesJson => {
       return Promise.all(
