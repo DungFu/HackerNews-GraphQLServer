@@ -1,18 +1,37 @@
 type Query {
-  stories(category: String!, first: Int, after: ID): [Item!]!
+  stories(category: String!, first: Int, after: ID): ItemConnection!
   item(id: ID!): Item
   user(id: ID!): User
 }
 
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type ItemEdge {
+  node: Item!
+  cursor: String!
+}
+
+type ItemConnection {
+  pageInfo: PageInfo!
+  count: Int!
+  edges: [ItemEdge]!
+}
+
 type Item {
   by: User
+  by_id: String
   dead: Boolean
   deleted: Boolean
   descendants: Int
   id: ID
-  kids(first: Int, after: ID): [Item!]
+  kids(first: Int, after: ID): ItemConnection!
   parent: Item
-  parts(first: Int, after: ID): [Item!]
+  parts(first: Int, after: ID): ItemConnection!
   poll: Item
   score: Int
   text: String
@@ -28,5 +47,5 @@ type User {
   delay: Int
   id: ID
   karma: Int
-  submitted(first: Int, after: ID): [Item!]
+  submitted(first: Int, after: ID): ItemConnection!
 }

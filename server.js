@@ -13,32 +13,62 @@ const resolvers = {
     item: (parent, args) => fetchItem(args.id),
     user: (parent, args) => fetchUser(args.id),
   },
+  ItemEdge: {
+    node: (parent, args) => parent,
+    cursor: (parent, args) => parent.id,
+  },
+  ItemConnection: {
+    pageInfo: (parent, args) => parent.pageInfo,
+    count: (parent, args) => parent.count,
+    edges: (parent, args) => fetchItems(parent.edges, args)
+  },
   Item: {
-    kids: (parent, args) => fetchItems(parent.kids, args),
-    parts: (parent, args) => fetchItems(parent.parts, args),
+    kids: (parent, args) => filterFirstAfter(parent.kids, args),
+    parts: (parent, args) => filterFirstAfter(parent.parts, args),
     by: parent => fetchUser(parent.by),
+    by_id: parent => parent.by,
     parent: parent => fetchItem(parent.parent),
     poll: parent => fetchItem(parent.poll),
   },
   User: {
-    submitted: (parent, args) => fetchItems(parent.submitted, args)
+    submitted: (parent, args) => filterFirstAfter(parent.submitted, args)
   }
 }
 
 function filterFirstAfter(arr, args) {
-  let startIndex = 0
-  if (args.after) {
-    const index = arr.indexOf(Number(args.after))
-    if (index >= 0) {
-      startIndex = Math.min(index + 1, arr.length - 1);
+  if (arr) {
+    let startIndex = 0
+    if (args.after) {
+      const index = arr.indexOf(Number(args.after))
+      if (index >= 0) {
+        startIndex = Math.min(index + 1, arr.length - 1);
+      }
+    }
+    if (!(args.first > 0 && args.first <= MAX_FETCH_NUM)) {
+      args.first = MAX_FETCH_NUM
+    }
+    const items = arr.slice(startIndex, startIndex + args.first)
+    return {
+      pageInfo: {
+        hasNextPage: startIndex + args.first < arr.length,
+        hasPreviousPage: startIndex > 0,
+        startCursor: items.length > 0 ? items[0] : null,
+        endCursor: items.length > 0 ? items[items.length - 1] : null,
+      },
+      count: arr.length,
+      edges: items,
     }
   }
-  if (!(args.first <= MAX_FETCH_NUM)) {
-    args.first = MAX_FETCH_NUM
+  return {
+    pageInfo: {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: null,
+      endCursor: null,
+    },
+    count: 0,
+    edges: [],
   }
-  return args.first > 0
-    ? arr.slice(startIndex, startIndex + args.first)
-    : arr.slice(startIndex)
 }
 
 function fetchStories(args) {
@@ -56,9 +86,7 @@ function fetchStories(args) {
       })
   }
   return storiesPromise.then(storiesJson => {
-    return Promise.all(
-      filterFirstAfter(storiesJson, args)
-        .map(itemId => fetchItem(itemId)))
+    return filterFirstAfter(storiesJson, args)
   })
 }
 
@@ -80,12 +108,7 @@ function fetchItem(itemId) {
 }
 
 function fetchItems(itemIds, args) {
-  if (itemIds) {
-    return Promise.all(
-      filterFirstAfter(itemIds, args)
-        .map(itemId => fetchItem(itemId)))
-  }
-  return null
+  return Promise.all(itemIds.map(itemId => fetchItem(itemId)))
 }
 
 function fetchUser(userId) {
