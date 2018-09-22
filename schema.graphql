@@ -1,10 +1,5 @@
 type Query {
-  askstories(first: Int, after: ID): [Item!]!
-  beststories(first: Int, after: ID): [Item!]!
-  jobstories(first: Int, after: ID): [Item!]!
-  newstories(first: Int, after: ID): [Item!]!
-  showstories(first: Int, after: ID): [Item!]!
-  topstories(first: Int, after: ID): [Item!]!
+  stories(category: String!, first: Int, after: ID): [Item!]!
   item(id: ID!): Item
   user(id: ID!): User
 }
