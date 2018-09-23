@@ -1,6 +1,33 @@
 const { GraphQLServer } = require('graphql-yoga')
 const fetch = require('node-fetch')
 
+const delay = (ms) => {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      resolve()
+    }, ms)
+  })
+}
+const retryFetch = (url, fetchOptions={}, retries=3, retryDelay=500) => {
+  return new Promise((resolve, reject) => {
+    const wrapper = n => {
+      fetch(url, fetchOptions)
+        .then(res => { resolve(res) })
+        .catch(async err => {
+          if(n > 0) {
+            // console.log(`retrying ${n}`)
+            await delay(retryDelay)
+            wrapper(--n)
+          } else {
+            reject(err)
+          }
+        })
+    }
+
+    wrapper(retries)
+  })
+}
+
 const baseURL = 'https://hacker-news.firebaseio.com/v0'
 const MAX_FETCH_NUM = 20
 const cacheStories = {}
@@ -79,7 +106,7 @@ function fetchStories(args) {
       resolve(cacheStories[args.category][1])
     })
   } else {
-    storiesPromise = fetch(`${baseURL}/${args.category}.json`)
+    storiesPromise = retryFetch(`${baseURL}/${args.category}.json`)
       .then(res => {
         cacheStories[args.category] = [now, res.json()]
         return cacheStories[args.category][1]
@@ -98,7 +125,7 @@ function fetchItem(itemId) {
         resolve(cacheItems[itemId][1])
       })
     }
-    return fetch(`${baseURL}/item/${itemId}.json`)
+    return retryFetch(`${baseURL}/item/${itemId}.json`)
       .then(res => {
         cacheItems[itemId] = [now, res.json()]
         return cacheItems[itemId][1]
@@ -119,7 +146,7 @@ function fetchUser(userId) {
         resolve(cacheUsers[userId][1])
       })
     }
-    return fetch(`${baseURL}/user/${userId}.json`)
+    return retryFetch(`${baseURL}/user/${userId}.json`)
       .then(res => {
         cacheUsers[userId] = [now, res.json()]
         return cacheUsers[userId][1]
