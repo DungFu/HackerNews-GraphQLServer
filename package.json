@@ -4,8 +4,9 @@
   "description": "Converts Hacker News API to GraphQL",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "redis-server": ".data/redis-stable/src/redis-server --daemonize yes",
+    "redis-cli": ".data/redis-stable/src/redis-cli",
+    "start": "npm run redis-server && node server.js"
   },
   "author": "Frederick Meyer",
   "license": "MIT",
