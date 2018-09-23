@@ -11,6 +11,7 @@
   "license": "MIT",
   "dependencies": {
     "graphql-yoga": "^1.16.2",
-    "node-fetch": "^2.2.0"
+    "node-fetch": "^2.2.0",
+    "redis": "^2.8.0"
   }
 }

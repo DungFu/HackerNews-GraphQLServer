@@ -28,11 +28,15 @@ const retryFetch = (url, fetchOptions={}, retries=3, retryDelay=500) => {
   })
 }
 
+const {promisify} = require('util')
+const redis = require("redis")
+const client = redis.createClient()
+const getAsync = promisify(client.get).bind(client);
+
+client.flushall();
+
 const baseURL = 'https://hacker-news.firebaseio.com/v0'
 const MAX_FETCH_NUM = 20
-const cacheStories = {}
-const cacheItems = {}
-const cacheUsers = {}
 
 const resolvers = {
   Query: {
@@ -99,37 +103,54 @@ function filterFirstAfter(arr, args) {
 }
 
 function fetchStories(args) {
-  const now = Date.now()
-  let storiesPromise;
-  if (cacheStories[args.category] && now - cacheStories[args.category][0] < 60000) {
-    storiesPromise = new Promise(function(resolve, reject){
-      resolve(cacheStories[args.category][1])
-    })
-  } else {
-    storiesPromise = retryFetch(`${baseURL}/${args.category}.json`)
+  const storiesFetchPromise =
+    retryFetch(`${baseURL}/${args.category}.json`)
       .then(res => {
-        cacheStories[args.category] = [now, res.json()]
-        return cacheStories[args.category][1]
+        const resJsonPromise = res.json()
+        resJsonPromise.then(resJson => {
+          client.set(args.category, JSON.stringify(resJson))
+          client.set(args.category + ":time", Date.now())
+        })
+        return resJsonPromise
       })
-  }
-  return storiesPromise.then(storiesJson => {
+  return Promise.all([
+    getAsync(args.category),
+    getAsync(args.category + ":time")
+  ]).then((data) => {
+    if (data[0] === null || Date.now() - Number(data[1]) > 60000) {
+      return storiesFetchPromise
+    }
+    return JSON.parse(data[0])
+  }).catch(err => {
+    return storiesFetchPromise
+  }).then(storiesJson => {
     return filterFirstAfter(storiesJson, args)
   })
 }
 
 function fetchItem(itemId) {
   if (itemId) {
-    const now = Date.now()
-    if (cacheItems[itemId] && now - cacheItems[itemId][0] < 60000) {
-      return new Promise(function(resolve, reject){
-        resolve(cacheItems[itemId][1])
-      })
-    }
-    return retryFetch(`${baseURL}/item/${itemId}.json`)
-      .then(res => {
-        cacheItems[itemId] = [now, res.json()]
-        return cacheItems[itemId][1]
-      })
+    const itemFetchPromise =
+      retryFetch(`${baseURL}/item/${itemId}.json`)
+        .then(res => {
+          const resJsonPromise = res.json()
+          resJsonPromise.then(resJson => {
+            client.set(itemId, JSON.stringify(resJson))
+            client.set(itemId + ":time", now)
+          })
+          return resJsonPromise
+        })
+    return Promise.all([
+      getAsync(itemId),
+      getAsync(itemId + ":time")
+    ]).then((data) => {
+      if (data[0] === null || Date.now() - Number(data[1]) > 60000) {
+        return itemFetchPromise
+      }
+      return JSON.parse(data[0])
+    }).catch(err => {
+      return itemFetchPromise
+    })
   }
   return null
 }
@@ -140,17 +161,27 @@ function fetchItems(itemIds, args) {
 
 function fetchUser(userId) {
   if (userId) {
-    const now = Date.now()
-    if (cacheUsers[userId] && now - cacheUsers[userId][0] < 60000) {
-      return new Promise(function(resolve, reject){
-        resolve(cacheUsers[userId][1])
-      })
-    }
-    return retryFetch(`${baseURL}/user/${userId}.json`)
-      .then(res => {
-        cacheUsers[userId] = [now, res.json()]
-        return cacheUsers[userId][1]
-      })
+    const userFetchPromise =
+      retryFetch(`${baseURL}/user/${userId}.json`)
+        .then(res => {
+          const resJsonPromise = res.json()
+          resJsonPromise.then(resJson => {
+            client.set(userId, JSON.stringify(resJson))
+            client.set(userId + ":time", now)
+          })
+          return resJsonPromise
+        })
+    return Promise.all([
+      getAsync(userId),
+      getAsync(userId + ":time")
+    ]).then((data) => {
+      if (data[0] === null || Date.now() - Number(data[1]) > 60000) {
+        return userFetchPromise
+      }
+      return JSON.parse(data[0])
+    }).catch(err => {
+      return userFetchPromise
+    })
   }
   return null
 }
