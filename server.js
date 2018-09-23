@@ -184,6 +184,30 @@ function fetchUser(userId) {
   return null
 }
 
+function updateCache() {
+  const categories = [
+    "topstories",
+    "newstories",
+    "beststories",
+    "askstories",
+    "showstories",
+    "jobstories"
+  ]
+  for (category of categories) {
+    fetchStories({category: category}).then(stories => {
+      fetchItems(filterFirstAfter(stories.edges, {}).edges, {})
+    })
+  }
+}
+
+setInterval(() => {
+  client.flushall()
+}, 3600000)
+client.flushall()
+
+setInterval(updateCache, 60000)
+updateCache()
+
 const server = new GraphQLServer({
   typeDefs: './schema.graphql',
   resolvers,
