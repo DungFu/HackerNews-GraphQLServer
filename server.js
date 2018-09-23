@@ -33,8 +33,6 @@ const redis = require("redis")
 const client = redis.createClient()
 const getAsync = promisify(client.get).bind(client);
 
-client.flushall();
-
 const baseURL = 'https://hacker-news.firebaseio.com/v0'
 const MAX_FETCH_NUM = 20
 
