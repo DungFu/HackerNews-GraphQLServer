@@ -193,7 +193,7 @@ function updateCache() {
     "showstories",
     "jobstories"
   ]
-  for (category of categories) {
+  for (let category of categories) {
     fetchStories({category: category}).then(stories => {
       fetchItems(filterFirstAfter(stories.edges, {}).edges, {})
     })
