@@ -35,6 +35,7 @@ const getAsync = promisify(client.get).bind(client);
 
 const baseURL = 'https://hacker-news.firebaseio.com/v0'
 const MAX_FETCH_NUM = 20
+const CACHING_INTERVAL = 300 * 1000
 
 const resolvers = {
   Query: {
@@ -100,7 +101,7 @@ function filterFirstAfter(arr, args) {
   }
 }
 
-function fetchStories(args) {
+function fetchStories(args, override_cache=false) {
   const storiesFetchPromise =
     retryFetch(`${baseURL}/${args.category}.json`)
       .then(res => {
@@ -111,22 +112,28 @@ function fetchStories(args) {
         })
         return resJsonPromise
       })
+  if (override_cache) {
+    return storiesFetchPromise.then(storiesJson => {
+      return filterFirstAfter(storiesJson, args)
+    })
+  }
   return Promise.all([
     getAsync(args.category),
     getAsync(args.category + ":time")
   ]).then((data) => {
-    if (data[0] === null || Date.now() - Number(data[1]) > 60000) {
+    if (data[0] === null || Date.now() - Number(data[1]) > CACHING_INTERVAL) {
       return storiesFetchPromise
     }
     return JSON.parse(data[0])
   }).catch(err => {
+    console.error(err)
     return storiesFetchPromise
   }).then(storiesJson => {
     return filterFirstAfter(storiesJson, args)
   })
 }
 
-function fetchItem(itemId) {
+function fetchItem(itemId, override_cache=false) {
   if (itemId) {
     const itemFetchPromise =
       retryFetch(`${baseURL}/item/${itemId}.json`)
@@ -138,26 +145,30 @@ function fetchItem(itemId) {
           })
           return resJsonPromise
         })
+    if (override_cache) {
+      return itemFetchPromise
+    }
     return Promise.all([
       getAsync(itemId),
       getAsync(itemId + ":time")
     ]).then((data) => {
-      if (data[0] === null || Date.now() - Number(data[1]) > 60000) {
+      if (data[0] === null || Date.now() - Number(data[1]) > CACHING_INTERVAL) {
         return itemFetchPromise
       }
       return JSON.parse(data[0])
     }).catch(err => {
+      console.error(err)
       return itemFetchPromise
     })
   }
   return null
 }
 
-function fetchItems(itemIds, args) {
-  return Promise.all(itemIds.map(itemId => fetchItem(itemId)))
+function fetchItems(itemIds, args, override_cache=false) {
+  return Promise.all(itemIds.map(itemId => fetchItem(itemId, override_cache)))
 }
 
-function fetchUser(userId) {
+function fetchUser(userId, override_cache=false) {
   if (userId) {
     const userFetchPromise =
       retryFetch(`${baseURL}/user/${userId}.json`)
@@ -169,15 +180,19 @@ function fetchUser(userId) {
           })
           return resJsonPromise
         })
+    if (override_cache) {
+      return userFetchPromise
+    }
     return Promise.all([
       getAsync(userId),
       getAsync(userId + ":time")
     ]).then((data) => {
-      if (data[0] === null || Date.now() - Number(data[1]) > 60000) {
+      if (data[0] === null || Date.now() - Number(data[1]) > CACHING_INTERVAL) {
         return userFetchPromise
       }
       return JSON.parse(data[0])
     }).catch(err => {
+      console.error(err)
       return userFetchPromise
     })
   }
@@ -185,6 +200,7 @@ function fetchUser(userId) {
 }
 
 function updateCache() {
+  console.log("updating cache")
   const categories = [
     "topstories",
     "newstories",
@@ -193,11 +209,19 @@ function updateCache() {
     "showstories",
     "jobstories"
   ]
-  for (let category of categories) {
-    fetchStories({category: category}).then(stories => {
-      fetchItems(filterFirstAfter(stories.edges, {}).edges, {})
+  Promise.all(categories.map(category => {
+    return fetchStories({category: category}, true).then(storyIds => {
+      return fetchItems(storyIds.edges, {}, true).then(stories => {
+        return Promise.all(stories.map(story => {
+          if (story.kids) {
+            return fetchItems(story.kids, {}, true)
+          }
+        }))
+      })
     })
-  }
+  })).then(res => {
+    console.log("cache fetch finished")
+  })
 }
 
 setInterval(() => {
@@ -205,7 +229,7 @@ setInterval(() => {
 }, 3600000)
 client.flushall()
 
-setInterval(updateCache, 60000)
+setInterval(updateCache, CACHING_INTERVAL)
 updateCache()
 
 const server = new GraphQLServer({
