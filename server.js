@@ -136,7 +136,7 @@ function fetchItem(itemId) {
           const resJsonPromise = res.json()
           resJsonPromise.then(resJson => {
             client.set(itemId, JSON.stringify(resJson))
-            client.set(itemId + ":time", now)
+            client.set(itemId + ":time", Date.now())
           })
           return resJsonPromise
         })
@@ -167,7 +167,7 @@ function fetchUser(userId) {
           const resJsonPromise = res.json()
           resJsonPromise.then(resJson => {
             client.set(userId, JSON.stringify(resJson))
-            client.set(userId + ":time", now)
+            client.set(userId + ":time", Date.now())
           })
           return resJsonPromise
         })
