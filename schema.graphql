@@ -29,7 +29,6 @@ type Item {
   user: User
   user_id: ID
   time: Int!
-  time_ago: String!
   content: String!
   deleted: Boolean
   dead: Boolean
@@ -37,14 +36,13 @@ type Item {
   url: String
   domain: String
   comments(first: Int, after: ID): ItemConnection!
-  level: Int!
   comments_count: Int!
 }
 
 type User {
   about: String
-  created_time: Int!
-  created: String!
+  created: Int!
   id: ID!
-  karma: Int! 
+  karma: Int!
+  submitted(first: Int, after: ID): ItemConnection!
 }

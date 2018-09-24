@@ -54,6 +54,9 @@ const resolvers = {
     comments: (parent, args) => filterFirstAfter(parent.comments, args),
     user: parent => fetchUser(parent.user),
     user_id: parent => parent.user,
+  },
+  User: {
+    submitted: (parent, args) => filterFirstAfter(parent.submitted, args)
   }
 }
 
@@ -101,8 +104,13 @@ function fetchStories(args, override_cache=false) {
       .then(res => {
         const resJsonPromise = res.json()
         resJsonPromise.then(resJson => {
-          redis.set(args.category, JSON.stringify(resJson))
-          redis.set(args.category + ":time", Date.now())
+          if (resJson === null) {
+            return;
+          }
+          redis.pipeline()
+            .set(args.category, JSON.stringify(resJson))
+            .set(args.category + ":time", Date.now())
+            .exec()
         })
         return resJsonPromise
       })
@@ -111,17 +119,16 @@ function fetchStories(args, override_cache=false) {
       return filterFirstAfter(storiesJson, args)
     })
   }
-  return Promise.all([
-    redis.get(args.category),
-    redis.get(args.category + ":time")
-  ]).then((data) => {
-    if (data[0] === null || Date.now() - Number(data[1]) > CACHING_INTERVAL) {
+  return redis.get(args.category + ":time").then(timestamp => {
+    if (timestamp === null || Date.now() - Number(timestamp) > CACHING_INTERVAL) {
       return storiesFetchPromise
     }
-    return JSON.parse(data[0])
-  }).catch(err => {
-    console.error(err)
-    return storiesFetchPromise
+    return redis.get(args.category).then(data => {
+      if (data === null) {
+        return itemFetchPromise
+      }
+      return JSON.parse(data)
+    })
   }).then(storiesJson => {
     return filterFirstAfter(storiesJson, args)
   })
@@ -153,24 +160,23 @@ function fetchItem(itemId, override_cache=false) {
             resJson.comments = parseRecursiveComments(subComments, pipeline)
             pipeline.set(itemId, JSON.stringify(resJson))
             pipeline.set(itemId + ":time", Date.now())
-            return pipeline.exec()
+            pipeline.exec()
           })
           return resJsonPromise
         })
     if (override_cache) {
       return itemFetchPromise
     }
-    return Promise.all([
-      redis.get(itemId),
-      redis.get(itemId + ":time")
-    ]).then((data) => {
-      if (data[0] === null || Date.now() - Number(data[1]) > CACHING_INTERVAL) {
+    return redis.get(itemId + ":time").then(timestamp => {
+      if (timestamp === null || Date.now() - Number(timestamp) > CACHING_INTERVAL) {
         return itemFetchPromise
       }
-      return JSON.parse(data[0])
-    }).catch(err => {
-      console.error(err)
-      return itemFetchPromise
+      return redis.get(itemId).then(data => {
+        if (data === null) {
+          return itemFetchPromise
+        }
+        return JSON.parse(data)
+      })
     })
   }
   return null
@@ -183,29 +189,33 @@ function fetchItems(itemIds, args, override_cache=false) {
 function fetchUser(userId, override_cache=false) {
   if (userId) {
     const userFetchPromise =
-      retryFetch(`https://api.hnpwa.com/v0/user/${userId}.json`)
+      retryFetch(`${baseURL}/user/${userId}.json`)
         .then(res => {
           const resJsonPromise = res.json()
           resJsonPromise.then(resJson => {
-            redis.set(userId, JSON.stringify(resJson))
-            redis.set(userId + ":time", Date.now())
+            if (resJson === null) {
+              return;
+            }
+            redis.pipeline()
+              .set(userId, JSON.stringify(resJson))
+              .set(userId + ":time", Date.now())
+              .exec()
           })
           return resJsonPromise
         })
     if (override_cache) {
       return userFetchPromise
     }
-    return Promise.all([
-      redis.get(userId),
-      redis.get(userId + ":time")
-    ]).then((data) => {
-      if (data[0] === null || Date.now() - Number(data[1]) > CACHING_INTERVAL) {
+    return redis.get(userId + ":time").then(timestamp => {
+      if (timestamp === null || Date.now() - Number(timestamp) > CACHING_INTERVAL) {
         return userFetchPromise
       }
-      return JSON.parse(data[0])
-    }).catch(err => {
-      console.error(err)
-      return userFetchPromise
+      return redis.get(userId).then(data => {
+        if (data === null) {
+          return userFetchPromise
+        }
+        return JSON.parse(data)
+      })
     })
   }
   return null
