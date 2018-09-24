@@ -212,22 +212,22 @@ function fetchUser(userId, override_cache=false) {
 }
 
 function updateCache() {
-  console.log("updating cache")
+  console.log("updating cache...")
   const categories = [
     "topstories",
-    "newstories",
+    // "newstories",
     "beststories",
-    "askstories",
-    "showstories",
-    "jobstories"
+    // "askstories",
+    // "showstories",
+    // "jobstories"
   ]
-  Promise.all(categories.map(category => {
-    return fetchStories({category: category, first: 30}, true).then(storyIds => {
+  for (let category of categories) {
+    fetchStories({category: category, first: 30}, true).then(storyIds => {
       return fetchItems(storyIds.edges, {}, true)
+    }).then(res => {
+      console.log("cache fetch finished " + category)
     })
-  })).then(res => {
-    console.log("cache fetch finished")
-  })
+  }
 }
 
 setInterval(() => {
