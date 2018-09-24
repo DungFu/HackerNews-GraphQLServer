@@ -125,7 +125,7 @@ function fetchStories(args, override_cache=false) {
     }
     return redis.get(args.category).then(data => {
       if (data === null) {
-        return itemFetchPromise
+        return storiesFetchPromise
       }
       return JSON.parse(data)
     })
