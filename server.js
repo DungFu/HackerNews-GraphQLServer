@@ -29,9 +29,8 @@ const retryFetch = (url, fetchOptions={}, retries=3, retryDelay=500) => {
 }
 
 const {promisify} = require('util')
-const redis = require("redis")
-const client = redis.createClient()
-const getAsync = promisify(client.get).bind(client);
+const Redis = require("ioredis")
+const redis = new Redis()
 
 const baseURL = 'https://hacker-news.firebaseio.com/v0'
 const CACHING_INTERVAL = 300 * 1000
@@ -102,8 +101,8 @@ function fetchStories(args, override_cache=false) {
       .then(res => {
         const resJsonPromise = res.json()
         resJsonPromise.then(resJson => {
-          client.set(args.category, JSON.stringify(resJson))
-          client.set(args.category + ":time", Date.now())
+          redis.set(args.category, JSON.stringify(resJson))
+          redis.set(args.category + ":time", Date.now())
         })
         return resJsonPromise
       })
@@ -113,8 +112,8 @@ function fetchStories(args, override_cache=false) {
     })
   }
   return Promise.all([
-    getAsync(args.category),
-    getAsync(args.category + ":time")
+    redis.get(args.category),
+    redis.get(args.category + ":time")
   ]).then((data) => {
     if (data[0] === null || Date.now() - Number(data[1]) > CACHING_INTERVAL) {
       return storiesFetchPromise
@@ -128,13 +127,13 @@ function fetchStories(args, override_cache=false) {
   })
 }
 
-function parseRecursiveComments(comments) {
+function parseRecursiveComments(comments, pipeline) {
   return comments.map(comment => {
     const subComments = comment.comments
     comment.comments = subComments.map(comment => comment.id)
-    client.set(comment.id, JSON.stringify(comment))
-    client.set(comment.id + ":time", Date.now())
-    parseRecursiveComments(subComments)
+    pipeline.set(comment.id, JSON.stringify(comment))
+    pipeline.set(comment.id + ":time", Date.now())
+    parseRecursiveComments(subComments, pipeline)
     return comment.id
   })
 }
@@ -149,10 +148,12 @@ function fetchItem(itemId, override_cache=false) {
             if (resJson === null) {
               return;
             }
+            const pipeline = redis.pipeline()
             const subComments = resJson.comments
-            resJson.comments = parseRecursiveComments(subComments)
-            client.set(itemId, JSON.stringify(resJson))
-            client.set(itemId + ":time", Date.now())
+            resJson.comments = parseRecursiveComments(subComments, pipeline)
+            pipeline.set(itemId, JSON.stringify(resJson))
+            pipeline.set(itemId + ":time", Date.now())
+            return pipeline.exec()
           })
           return resJsonPromise
         })
@@ -160,8 +161,8 @@ function fetchItem(itemId, override_cache=false) {
       return itemFetchPromise
     }
     return Promise.all([
-      getAsync(itemId),
-      getAsync(itemId + ":time")
+      redis.get(itemId),
+      redis.get(itemId + ":time")
     ]).then((data) => {
       if (data[0] === null || Date.now() - Number(data[1]) > CACHING_INTERVAL) {
         return itemFetchPromise
@@ -186,8 +187,8 @@ function fetchUser(userId, override_cache=false) {
         .then(res => {
           const resJsonPromise = res.json()
           resJsonPromise.then(resJson => {
-            client.set(userId, JSON.stringify(resJson))
-            client.set(userId + ":time", Date.now())
+            redis.set(userId, JSON.stringify(resJson))
+            redis.set(userId + ":time", Date.now())
           })
           return resJsonPromise
         })
@@ -195,8 +196,8 @@ function fetchUser(userId, override_cache=false) {
       return userFetchPromise
     }
     return Promise.all([
-      getAsync(userId),
-      getAsync(userId + ":time")
+      redis.get(userId),
+      redis.get(userId + ":time")
     ]).then((data) => {
       if (data[0] === null || Date.now() - Number(data[1]) > CACHING_INTERVAL) {
         return userFetchPromise
@@ -230,9 +231,9 @@ function updateCache() {
 }
 
 setInterval(() => {
-  client.flushall()
+  redis.flushall()
 }, 3600000)
-client.flushall()
+redis.flushall()
 
 setInterval(updateCache, CACHING_INTERVAL)
 updateCache()
