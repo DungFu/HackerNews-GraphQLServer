@@ -34,7 +34,6 @@ const client = redis.createClient()
 const getAsync = promisify(client.get).bind(client);
 
 const baseURL = 'https://hacker-news.firebaseio.com/v0'
-const MAX_FETCH_NUM = 20
 const CACHING_INTERVAL = 300 * 1000
 
 const resolvers = {
@@ -53,15 +52,9 @@ const resolvers = {
     edges: (parent, args) => fetchItems(parent.edges, args)
   },
   Item: {
-    kids: (parent, args) => filterFirstAfter(parent.kids, args),
-    parts: (parent, args) => filterFirstAfter(parent.parts, args),
-    by: parent => fetchUser(parent.by),
-    by_id: parent => parent.by,
-    parent: parent => fetchItem(parent.parent),
-    poll: parent => fetchItem(parent.poll),
-  },
-  User: {
-    submitted: (parent, args) => filterFirstAfter(parent.submitted, args)
+    comments: (parent, args) => filterFirstAfter(parent.comments, args),
+    user: parent => fetchUser(parent.user),
+    user_id: parent => parent.user,
   }
 }
 
@@ -74,10 +67,12 @@ function filterFirstAfter(arr, args) {
         startIndex = Math.min(index + 1, arr.length - 1);
       }
     }
-    if (!(args.first > 0 && args.first <= MAX_FETCH_NUM)) {
-      args.first = MAX_FETCH_NUM
+    let items;
+    if (args.first > 0) {
+      items = arr.slice(startIndex, startIndex + args.first)
+    } else {
+      items = arr.slice(startIndex)
     }
-    const items = arr.slice(startIndex, startIndex + args.first)
     return {
       pageInfo: {
         hasNextPage: startIndex + args.first < arr.length,
@@ -133,13 +128,29 @@ function fetchStories(args, override_cache=false) {
   })
 }
 
+function parseRecursiveComments(comments) {
+  return comments.map(comment => {
+    const subComments = comment.comments
+    comment.comments = subComments.map(comment => comment.id)
+    client.set(comment.id, JSON.stringify(comment))
+    client.set(comment.id + ":time", Date.now())
+    parseRecursiveComments(subComments)
+    return comment.id
+  })
+}
+
 function fetchItem(itemId, override_cache=false) {
   if (itemId) {
     const itemFetchPromise =
-      retryFetch(`${baseURL}/item/${itemId}.json`)
+      retryFetch(`https://api.hnpwa.com/v0/item/${itemId}.json`)
         .then(res => {
           const resJsonPromise = res.json()
           resJsonPromise.then(resJson => {
+            if (resJson === null) {
+              return;
+            }
+            const subComments = resJson.comments
+            resJson.comments = parseRecursiveComments(subComments)
             client.set(itemId, JSON.stringify(resJson))
             client.set(itemId + ":time", Date.now())
           })
@@ -171,7 +182,7 @@ function fetchItems(itemIds, args, override_cache=false) {
 function fetchUser(userId, override_cache=false) {
   if (userId) {
     const userFetchPromise =
-      retryFetch(`${baseURL}/user/${userId}.json`)
+      retryFetch(`https://api.hnpwa.com/v0/user/${userId}.json`)
         .then(res => {
           const resJsonPromise = res.json()
           resJsonPromise.then(resJson => {
@@ -210,14 +221,8 @@ function updateCache() {
     "jobstories"
   ]
   Promise.all(categories.map(category => {
-    return fetchStories({category: category}, true).then(storyIds => {
-      return fetchItems(storyIds.edges, {}, true).then(stories => {
-        return Promise.all(stories.map(story => {
-          if (story.kids) {
-            return fetchItems(story.kids, {}, true)
-          }
-        }))
-      })
+    return fetchStories({category: category, first: 30}, true).then(storyIds => {
+      return fetchItems(storyIds.edges, {}, true)
     })
   })).then(res => {
     console.log("cache fetch finished")

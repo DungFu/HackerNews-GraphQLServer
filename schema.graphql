@@ -23,29 +23,28 @@ type ItemConnection {
 }
 
 type Item {
-  by: User
-  by_id: String
-  dead: Boolean
+  id: ID!
+  title: String!
+  points: Int
+  user: User
+  user_id: ID
+  time: Int!
+  time_ago: String!
+  content: String!
   deleted: Boolean
-  descendants: Int
-  id: ID
-  kids(first: Int, after: ID): ItemConnection!
-  parent: Item
-  parts(first: Int, after: ID): ItemConnection!
-  poll: Item
-  score: Int
-  text: String
-  time: Int
-  title: String
-  type: String
+  dead: Boolean
+  type: String!
   url: String
+  domain: String
+  comments(first: Int, after: ID): ItemConnection!
+  level: Int!
+  comments_count: Int!
 }
 
 type User {
   about: String
-  created: Int
-  delay: Int
-  id: ID
-  karma: Int
-  submitted(first: Int, after: ID): ItemConnection!
+  created_time: Int!
+  created: String!
+  id: ID!
+  karma: Int! 
 }
